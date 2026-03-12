@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PhishGuard — URL Threat Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+    /* Light mode */
+    :root{
+      --bg:#ffffff;--rule:#e8e8e4;--rule2:#d0d0c8;--muted:#999990;
+      --body:#1a1a18;--sub:#555550;
+      --danger:#cc2200;--warn:#996600;--safe:#006633;--info:#0044cc;
+      --mono:'JetBrains Mono',monospace;--sans:'Instrument Sans',sans-serif;--serif:'Instrument Serif',serif;
+      --c-proto-bg:#dceeff;--c-proto-fg:#003399;
+      --c-sub-bg:#fff3d6;--c-sub-fg:#7a4d00;
+      --c-domain-bg:#d6f5e3;--c-domain-fg:#004d22;
+      --c-tld-bg:#fde8e4;--c-tld-fg:#8c1500;
+      --c-path-bg:#f0f0ec;--c-path-fg:#444440;
+      --c-param-bg:#f5f5f0;--c-param-fg:#777770;
+      --b-red-bg:#fff5f3;--b-orange-bg:#fffbf0;--b-green-bg:#f3fff8;
+    }
+
+    /* Dark mode */
+    [data-theme="dark"]{
+      --bg:#0f0f0e;--rule:#272724;--rule2:#333330;--muted:#666660;
+      --body:#e8e8e2;--sub:#999990;
+      --danger:#ff5533;--warn:#cc9900;--safe:#00aa55;--info:#4488ff;
+      --c-proto-bg:#0a1a2e;--c-proto-fg:#5599ff;
+      --c-sub-bg:#1e1800;--c-sub-fg:#ddaa44;
+      --c-domain-bg:#001a0a;--c-domain-fg:#44cc77;
+      --c-tld-bg:#1e0800;--c-tld-fg:#ff6644;
+      --c-path-bg:#1a1a18;--c-path-fg:#999990;
+      --c-param-bg:#141412;--c-param-fg:#666660;
+      --b-red-bg:#1a0800;--b-orange-bg:#150f00;--b-green-bg:#001a08;
+    }
+
+    body{background:var(--bg);color:var(--body);font-family:var(--sans);min-height:100vh;transition:background .25s,color .25s}
+    .top-bar{height:3px;background:var(--body);transition:background .25s}
+
+    /* Toggle button */
+    .theme-toggle{
+      position:fixed;top:20px;right:24px;z-index:100;
+      background:var(--bg);border:1px solid var(--rule2);
+      border-radius:99px;padding:6px 14px;
+      font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+      color:var(--sub);cursor:pointer;
+      display:flex;align-items:center;gap:7px;
+      transition:background .25s,border-color .25s,color .25s;
+      box-shadow:0 1px 4px rgba(0,0,0,.08);
+    }
+    .theme-toggle:hover{border-color:var(--body);color:var(--body)}
+    .toggle-icon{font-size:13px;line-height:1}
+    .wrap{max-width:740px;margin:0 auto;padding:64px 32px 120px}
+    header{border-bottom:1px solid var(--rule);padding-bottom:32px;margin-bottom:48px}
+    .header-meta{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+    h1{font-family:var(--serif);font-size:clamp(2.2rem,5vw,3.2rem);font-weight:400;line-height:1.05;letter-spacing:-.02em}
+    h1 i{font-style:italic;color:var(--sub)}
+    .header-desc{margin-top:14px;font-size:.9rem;color:var(--sub);line-height:1.65;max-width:460px}
+    .section{margin-bottom:40px}
+    .section-label{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+    /* Input */
+    .input-row{display:flex;gap:0}
+    #url-input{flex:1;border:1px solid var(--rule2);border-right:none;padding:14px 16px;font-family:var(--mono);font-size:.9rem;color:var(--body);background:var(--bg);outline:none;border-radius:0;-webkit-appearance:none;transition:border-color .15s,background .25s,color .25s}
+    #url-input:focus{border-color:var(--body)}
+    #url-input::placeholder{color:var(--muted)}
+    #analyze-btn{background:var(--body);color:#fff;border:1px solid var(--body);padding:14px 22px;font-family:var(--sans);font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s;border-radius:0}
+    #analyze-btn:hover{background:#333}
+    .examples{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+    .ex-lbl{font-family:var(--mono);font-size:10px;color:var(--muted)}
+    .ex-btn{font-family:var(--mono);font-size:10px;padding:4px 10px;border:1px solid var(--rule2);background:none;color:var(--sub);cursor:pointer;transition:border-color .15s,color .15s;border-radius:0}
+    .ex-btn:hover{border-color:var(--body);color:var(--body)}
+    /* Results hidden by default */
+    #results{display:none}
+    #empty{text-align:center;padding:56px 24px;color:var(--muted)}
+    #empty p{font-size:.88rem;line-height:1.7}
+    /* Verdict */
+    .verdict{border-left:3px solid var(--rule2);padding:20px 20px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+    .verdict.safe{border-color:var(--safe)}
+    .verdict.warn{border-color:var(--warn)}
+    .verdict.danger{border-color:var(--danger)}
+    .verdict-left h2{font-family:var(--serif);font-size:1.6rem;font-weight:400;line-height:1.1}
+    .verdict.safe   h2{color:var(--safe)}
+    .verdict.warn   h2{color:var(--warn)}
+    .verdict.danger h2{color:var(--danger)}
+    .verdict-left p{margin-top:6px;font-size:.85rem;color:var(--sub);max-width:400px;line-height:1.55}
+    .verdict-score{text-align:right;flex-shrink:0}
+    .score-big{font-family:var(--mono);font-size:2.8rem;font-weight:500;line-height:1}
+    .verdict.safe   .score-big{color:var(--safe)}
+    .verdict.warn   .score-big{color:var(--warn)}
+    .verdict.danger .score-big{color:var(--danger)}
+    .score-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+    /* Risk bar */
+    .risk-track{height:2px;background:var(--rule);margin-bottom:6px}
+    .risk-fill{height:100%;width:0%;transition:width .7s cubic-bezier(.4,0,.2,1),background .3s}
+    .risk-labels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+    /* Stat row */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule2);margin-bottom:32px}
+    @media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+    .stat{padding:16px 14px;border-right:1px solid var(--rule2)}
+    .stat:last-child{border-right:none}
+    .stat-val{font-family:var(--mono);font-size:1.5rem;font-weight:500;color:var(--body);line-height:1}
+    .stat-lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+    /* URL breakdown */
+    .url-box{border:1px solid var(--rule2);padding:18px 16px;margin-bottom:32px;font-family:var(--mono);font-size:.8rem;word-break:break-all;line-height:2}
+    .u-proto{background:var(--c-proto-bg);color:var(--c-proto-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .u-sub{background:var(--c-sub-bg);color:var(--c-sub-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .u-domain{background:var(--c-domain-bg);color:var(--c-domain-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .u-tld{background:var(--c-tld-bg);color:var(--c-tld-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .u-path{background:var(--c-path-bg);color:var(--c-path-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .u-param{background:var(--c-param-bg);color:var(--c-param-fg);padding:1px 4px;transition:background .25s,color .25s}
+    .url-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+    .leg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+    .leg-dot{width:10px;height:10px;border-radius:1px}
+    /* Signals */
+    .signals{display:grid;gap:0;border:1px solid var(--rule2);margin-bottom:32px}
+    .signal{display:flex;gap:14px;padding:14px 16px;border-bottom:1px solid var(--rule);font-size:.82rem;line-height:1.6}
+    .signal:last-child{border-bottom:none}
+    .signal.bad   .sig-icon{color:var(--danger)}
+    .signal.warn  .sig-icon{color:var(--warn)}
+    .signal.good  .sig-icon{color:var(--safe)}
+    .signal.info  .sig-icon{color:var(--info)}
+    .sig-icon{font-size:14px;flex-shrink:0;padding-top:1px}
+    .sig-text{color:var(--sub)}
+    .signal.bad  .sig-text{color:var(--body)}
+    .signal.good .sig-text{color:var(--safe)}
+    /* Badges */
+    .badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:32px}
+    .badge{font-family:var(--mono);font-size:10px;padding:4px 10px;border:1px solid;letter-spacing:.05em}
+    .b-red{border-color:var(--danger);color:var(--danger);background:var(--b-red-bg)}
+    .b-orange{border-color:var(--warn);color:var(--warn);background:var(--b-orange-bg)}
+    .b-green{border-color:var(--safe);color:var(--safe);background:var(--b-green-bg)}
+    .b-gray{border-color:var(--rule2);color:var(--muted)}
+    /* Note box */
+    .note{border:1px solid var(--rule2);padding:18px 20px;font-size:.82rem;color:var(--sub);line-height:1.7}
+    .note strong{color:var(--body)}
+    .divider{border:none;border-top:1px solid var(--rule);margin:40px 0}
+    footer{border-top:1px solid var(--rule);padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+    footer p{font-family:var(--mono);font-size:10px;color:var(--muted)}
+    footer a{color:var(--body);text-decoration:none;border-bottom:1px solid var(--rule2)}
+    footer a:hover{border-color:var(--body)}
+  </style>
+</head>
+<body>
+<div class="top-bar"></div>
+<button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+  <span class="toggle-icon" id="toggle-icon">☀</span>
+  <span id="toggle-label">Light</span>
+</button>
+<div class="wrap">
+  <header>
+    <div class="header-meta">PhishGuard v1.0 &nbsp;/&nbsp; URL Threat Analyzer</div>
+    <h1>Is this URL<br><i>safe to open?</i></h1>
+    <p class="header-desc">Paste any URL to scan it for phishing patterns, brand impersonation, and attacker techniques. All analysis runs locally — nothing is transmitted.</p>
+  </header>
+
+  <div class="section">
+    <div class="section-label">URL to analyze</div>
+    <div class="input-row">
+      <input type="text" id="url-input" placeholder="https://example.com" autocomplete="off" spellcheck="false"/>
+      <button id="analyze-btn" onclick="run()">Analyze</button>
+    </div>
+    <div class="examples">
+      <span class="ex-lbl">examples:</span>
+      <button class="ex-btn" onclick="load('https://www.google.com')">google.com</button>
+      <button class="ex-btn" onclick="load('http://paypa1-secure.login-verify.com/account?suspended=true')">paypal spoof</button>
+      <button class="ex-btn" onclick="load('https://secure-bankofamerica.com.phish.tk/login')">bank spoof</button>
+      <button class="ex-btn" onclick="load('https://bit.ly/3xK9mZp')">shortened URL</button>
+      <button class="ex-btn" onclick="load('http://192.168.1.1/admin/login.php?redirect=http://evil.com')">IP + redirect</button>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <div id="empty">
+    <p>Enter a URL above to begin threat analysis.<br>All checks run locally in your browser — no data is sent anywhere.</p>
+  </div>
+
+  <footer>
+    <p>PhishGuard — educational tool only. Does not guarantee detection of all phishing URLs.</p>
+    <p><a href="https://github.com/yourusername/phishguard" target="_blank">View on GitHub ↗</a></p>
+  </footer>
+</div>
+
+<script>
+const BRANDS=['paypal','apple','amazon','microsoft','google','facebook','instagram','netflix','bank','chase','wellsfargo','citibank','bankofamerica','dropbox','linkedin','twitter','yahoo','outlook','office365','adobe','docusign','fedex','ups','dhl','irs','usps','binance','coinbase','metamask','discord','steam'];
+const RTLDS=new Set(['tk','ml','ga','cf','gq','xyz','top','click','link','online','site','website','info','biz','ru','cn','pw','cc','ws']);
+const SHORTS=new Set(['bit.ly','tinyurl.com','t.co','goo.gl','ow.ly','is.gd','buff.ly','rebrand.ly','short.link','cutt.ly','rb.gy','tiny.cc']);
+const PWORDS=['login','signin','sign-in','verify','verification','secure','account','update','confirm','suspend','suspended','unlock','password','credential','banking','wallet','invoice','payment','redirect'];
+const HG={'0':'o','1':'l','3':'e','4':'a','5':'s','@':'a'};
+function dehg(s){let o=s.toLowerCase();for(const[k,v]of Object.entries(HG))o=o.replaceAll(k,v);return o;}
+
+function analyze(raw){
+  const signals=[];let risk=0;
+  let url=raw.trim();
+  if(!/^https?:\/\//i.test(url))url='http://'+url;
+  let p;try{p=new URL(url);}catch{return{error:'Could not parse URL. Please include a valid address.'};}
+  const proto=p.protocol,host=p.hostname.toLowerCase(),path=p.pathname,qs=p.search;
+  const parts=host.split('.'),tld=parts[parts.length-1],domain=parts.length>=2?parts[parts.length-2]+'.'+tld:host,subs=parts.slice(0,-2);
+  const dh=dehg(host);
+
+  if(proto==='http:'){signals.push({t:'bad',i:'✕',m:'Uses HTTP (not HTTPS). Any data entered is sent in plaintext — a major red flag for any login or account page.'});risk+=10;}
+  else{signals.push({t:'good',i:'✓',m:'Uses HTTPS. Connection is encrypted. Note: HTTPS does not mean a site is trustworthy — phishers obtain certificates too.'});}
+
+  const isIP=/^(\d{1,3}\.){3}\d{1,3}$/.test(host);
+  if(isIP){signals.push({t:'bad',i:'✕',m:`Direct IP address (${host}) instead of a domain name. Legitimate services never direct users to raw IP addresses.`});risk+=30;}
+
+  if(SHORTS.has(host)||SHORTS.has(domain)){signals.push({t:'warn',i:'!',m:`URL shortener detected (${host}). Shorteners hide the real destination. Banks and institutions never send shortened links for account actions.`});risk+=20;}
+
+  if(RTLDS.has(tld)){signals.push({t:'warn',i:'!',m:`.${tld} is a high-risk TLD frequently used in phishing. These domains are free or nearly free, lowering the barrier for attackers.`});risk+=15;}
+
+  const mb=[];
+  for(const b of BRANDS){const isReal=host===b+'.com'||host==='www.'+b+'.com';if(!isReal&&(dh.includes(b)||host.includes(b)))mb.push(b);}
+  if(mb.length){signals.push({t:'bad',i:'✕',m:`Brand impersonation: "${mb.join('", "')}" appears in a domain that is not the real brand website. A classic social engineering technique.`});risk+=35;}
+
+  const hasHG=Object.keys(HG).some(ch=>host.includes(ch)&&dh!==host);
+  if(hasHG&&!isIP){signals.push({t:'bad',i:'✕',m:'Lookalike characters detected (e.g. digit "1" substituted for letter "l"). This is typosquatting — designed to fool a quick visual scan.'});risk+=20;}
+
+  if(subs.length>=3){signals.push({t:'bad',i:'✕',m:`Deep subdomain nesting (${subs.join('.')}). Attackers bury trusted brand names in subdomains while the real domain is something else entirely.`});risk+=20;}
+  else if(subs.length===2){signals.push({t:'warn',i:'!',m:`Multiple subdomains present. Verify the actual registered domain — the second-to-last segment before the TLD.`});risk+=8;}
+
+  if(subs.length>0){const ss=subs.join('.');for(const b of BRANDS){if(ss.includes(b)){signals.push({t:'bad',i:'✕',m:`"${b}" is in the subdomain, not the real domain. The actual domain is "${domain}". This tricks users into trusting a fake subdomain.`});risk+=25;break;}}}
+
+  if(raw.includes('@')&&!raw.startsWith('mailto:')){signals.push({t:'bad',i:'✕',m:'The @ symbol in a URL forces browsers to discard everything before it. Attackers use this to fake a legitimate-looking prefix (e.g. google.com@evil.com).'});risk+=30;}
+
+  if(path.includes('//')){signals.push({t:'warn',i:'!',m:'Double slash in path — possible open redirect exploit. This can chain a legitimate-looking domain with a malicious destination.'});risk+=10;}
+
+  if(/[?&](redirect|url|next|return|goto|dest|target|continue)=https?/i.test(qs)){signals.push({t:'warn',i:'!',m:'Open redirect parameter detected. This can bounce users through a legitimate domain before landing on a phishing page.'});risk+=15;}
+
+  const pl=path.toLowerCase(),pw=PWORDS.filter(w=>pl.includes(w));
+  if(pw.length>=2){signals.push({t:'warn',i:'!',m:`Suspicious path keywords: "${pw.slice(0,3).join('", "')}". Credential-harvesting pages frequently use these terms.`});risk+=12;}
+
+  if(raw.length>150){signals.push({t:'warn',i:'!',m:`URL is ${raw.length} characters. Unusually long URLs often encode obfuscated parameters or hide suspicious components from casual inspection.`});risk+=8;}
+
+  if(/\.(exe|zip|rar|bat|sh|php|asp)(\?|$)/i.test(path)){const ext=path.match(/\.(exe|zip|rar|bat|sh|php|asp)/i)[0];signals.push({t:'bad',i:'✕',m:`Executable or script extension "${ext}" in path. Phishing campaigns often link directly to malware downloads.`});risk+=20;}
+
+  if(!signals.some(s=>s.t==='bad'||s.t==='warn'))
+    signals.push({t:'good',i:'✓',m:'No suspicious patterns detected. Always verify the domain independently and consider the context in which you received this link.'});
+
+  return{score:Math.min(100,risk),signals,parsed:{proto,host,domain,tld,subs,path,qs},stats:{len:raw.length,subs:subs.length,params:qs?qs.slice(1).split('&').length:0,depth:path.split('/').filter(Boolean).length}};
+}
+
+function run(){
+  const raw=document.getElementById('url-input').value.trim();
+  if(!raw)return;
+  const r=analyze(raw);
+  const res=document.getElementById('results');
+  const empty=document.getElementById('empty');
+  empty.style.display='none';
+  res.style.display='block';
+  if(r.error){res.innerHTML=`<div class="verdict warn"><div class="verdict-left"><h2>Parse Error</h2><p>${r.error}</p></div></div>`;return;}
+
+  const{score,signals,parsed,stats}=r;
+  let tier,head,sub;
+  if(score===0){tier='safe';head='Likely Safe';sub='No phishing indicators found. Proceed with normal caution.';}
+  else if(score<25){tier='safe';head='Low Risk';sub='Minor signals detected. Review the findings below.';}
+  else if(score<55){tier='warn';head='Suspicious';sub='Multiple risk signals found. Verify this URL carefully before entering any information.';}
+  else{tier='danger';head='High Risk — Likely Phishing';sub='Strong phishing indicators detected. Do not enter credentials on this page.';}
+
+  const fillColor=score<25?'var(--safe)':score<55?'var(--warn)':'var(--danger)';
+
+  // URL breakdown
+  let urlHtml=`<span class="u-proto">${parsed.proto}//</span>`;
+  if(parsed.subs.length)urlHtml+=`<span class="u-sub">${parsed.subs.join('.')}</span><span style="color:var(--muted)">.</span>`;
+  const dp=parsed.domain.split('.');
+  urlHtml+=`<span class="u-domain">${dp[0]}</span><span style="color:var(--muted)">.</span><span class="u-tld">${dp[1]}</span>`;
+  if(parsed.path&&parsed.path!=='/')urlHtml+=`<span class="u-path">${parsed.path}</span>`;
+  if(parsed.qs)urlHtml+=`<span class="u-param">${parsed.qs}</span>`;
+
+  // Badges
+  const cats=[];
+  if(signals.some(s=>s.m.includes('HTTP (not')))cats.push(['No HTTPS','b-red']);
+  if(signals.some(s=>s.m.includes('IP address')))cats.push(['Raw IP','b-red']);
+  if(signals.some(s=>s.m.includes('shortener')))cats.push(['URL Shortener','b-orange']);
+  if(signals.some(s=>s.m.includes('impersonation')))cats.push(['Brand Spoof','b-red']);
+  if(signals.some(s=>s.m.includes('subdomain')))cats.push(['Subdomain Trick','b-orange']);
+  if(signals.some(s=>s.m.includes('redirect')))cats.push(['Open Redirect','b-orange']);
+  if(signals.some(s=>s.m.includes('Lookalike')))cats.push(['Typosquat','b-red']);
+  if(signals.some(s=>s.m.includes('high-risk TLD')))cats.push(['Risky TLD','b-orange']);
+  if(signals.some(s=>s.m.includes('Executable')))cats.push(['Malware Link','b-red']);
+  if(!signals.some(s=>s.t==='bad'))cats.push(['No Threats Found','b-green']);
+  if(!cats.length)cats.push(['Manual Review Recommended','b-gray']);
+  const badgeHtml=cats.map(([l,c])=>`<span class="badge ${c}">${l}</span>`).join('');
+
+  // Signals
+  const sigHtml=signals.map(s=>`<div class="signal ${s.t}"><span class="sig-icon">${s.i}</span><span class="sig-text">${s.m}</span></div>`).join('');
+
+  res.innerHTML=`
+    <div class="verdict ${tier}">
+      <div class="verdict-left">
+        <h2>${head}</h2>
+        <p>${sub}</p>
+      </div>
+      <div class="verdict-score">
+        <div class="score-big">${score}</div>
+        <div class="score-lbl">risk / 100</div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Risk meter</div>
+      <div class="risk-track"><div class="risk-fill" style="width:${score}%;background:${fillColor}"></div></div>
+      <div class="risk-labels"><span>Safe</span><span>Suspicious</span><span>Phishing</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val">${stats.len}</div><div class="stat-lbl">Length</div></div>
+      <div class="stat"><div class="stat-val">${stats.subs}</div><div class="stat-lbl">Subdomains</div></div>
+      <div class="stat"><div class="stat-val">${stats.params}</div><div class="stat-lbl">Parameters</div></div>
+      <div class="stat"><div class="stat-val">${stats.depth}</div><div class="stat-lbl">Path Depth</div></div>
+    </div>
+    <div class="section">
+      <div class="section-label">URL structure</div>
+      <div class="url-box">
+        ${urlHtml}
+        <div class="url-legend">
+          <div class="leg"><div class="leg-dot" style="background:var(--c-proto-bg)"></div>Protocol</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--c-sub-bg)"></div>Subdomain</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--c-domain-bg)"></div>Domain</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--c-tld-bg)"></div>TLD</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--c-path-bg)"></div>Path</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--c-param-bg)"></div>Params</div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Detection signals — ${signals.length} checked</div>
+      <div class="signals">${sigHtml}</div>
+    </div>
+    <div class="section">
+      <div class="section-label">Threat categories</div>
+      <div class="badge-row">${badgeHtml}</div>
+    </div>
+    <div class="note">
+      <strong>How to read this:</strong> Each signal above corresponds to a documented attacker technique. A high score means multiple patterns were matched — but no tool catches everything. Always ask: <em>Did I expect this link? Does the domain exactly match the company? Would they contact me this way?</em> When in doubt, navigate directly by typing the address yourself.
+    </div>`;
+}
+
+function load(url){document.getElementById('url-input').value=url;run();}
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  if(isDark){
+    html.removeAttribute('data-theme');
+    document.getElementById('toggle-icon').textContent='☀';
+    document.getElementById('toggle-label').textContent='Light';
+    localStorage.setItem('phishguard-theme','light');
+  } else {
+    html.setAttribute('data-theme','dark');
+    document.getElementById('toggle-icon').textContent='☾';
+    document.getElementById('toggle-label').textContent='Dark';
+    localStorage.setItem('phishguard-theme','dark');
+  }
+}
+
+// Restore saved preference on load
+(function(){
+  const saved=localStorage.getItem('phishguard-theme');
+  if(saved==='dark'){
+    document.documentElement.setAttribute('data-theme','dark');
+    document.getElementById('toggle-icon').textContent='☾';
+    document.getElementById('toggle-label').textContent='Dark';
+  }
+})();
+document.getElementById('url-input').addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+</script>
+</body>
+</html>
