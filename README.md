@@ -11,9 +11,9 @@
 
 ## 🖥️ Live Demo
 
-**[▶ Open Live Demo](https://yourusername.github.io/phishguard)**
+**[▶ Open Live Demo](https://coutLiKe.github.io/phishguard)**
 
-Or open `index.html` directly in any browser. No install, no server needed.
+ No install, no server needed.
 
 ---
 
